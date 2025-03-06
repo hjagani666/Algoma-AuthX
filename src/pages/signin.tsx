@@ -12,10 +12,23 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import MuiCard from '@mui/material/Card';
 import AppTheme from '../theme/AppTheme';
-import { styled } from '@mui/material';
+import { Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Modal, styled } from '@mui/material';
 import { signInWithCredentials, signInWithGoogle } from '../firebase/auth';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { useSession, type Session } from '../SessionContext';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { ToastContainer, toast } from 'react-toastify';
+import SecurityQuestionModal from '../components/SecurityQuestionModal';
+
+
+const BootstrapDialog = styled(Dialog)(({ theme }) => ({
+  '& .MuiDialogContent-root': {
+    padding: theme.spacing(2),
+  },
+  '& .MuiDialogActions-root': {
+    padding: theme.spacing(1),
+  },
+}));
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -63,6 +76,8 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
   const [emailError, setEmailError] = React.useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = React.useState('');
   const [passwordError, setPasswordError] = React.useState(false);
+  const [isQAModalOpen, setIsQAModalOpen] = React.useState(false);
+  const [QA, setQA] = React.useState({ question: '', answer: '' });
   const [passwordErrorMessage, setPasswordErrorMessage] = React.useState('');
   const [open, setOpen] = React.useState(false);
   const { session, setSession, loading } = useSession();
@@ -76,6 +91,32 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
     setOpen(false);
   };
 
+
+  const fetchSecurityQuestions = async (uid: string) => {
+    try {
+      const db = getFirestore();
+      const userDocRef = doc(db, "users", uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log("##userData", userData)
+        if (userData?.authMethod === "questions") {
+          setIsQAModalOpen(true);
+          const questions = userData?.securityQuestions || [];
+          const randomIndex = Math.floor(Math.random() * questions.length);
+          setQA(questions[randomIndex]);
+          console.log("Security Questions:", userData.securityQuestions);
+        }
+      } else {
+        console.log("No user document found!");
+      }
+    } catch (error) {
+      console.error("Error fetching security questions:", error);
+    }
+  };
+
+  console.log("###QA", QA)
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (emailError || passwordError) {
@@ -84,8 +125,8 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
     const data = new FormData(event.currentTarget);
     const email: any = data.get('email');
     const password: any = data.get('password');
-    const result = await signInWithCredentials(email, password);
-    console.log("##result",result)
+    const result: any = await signInWithCredentials(email, password);
+    console.log("##result", result)
     if (result?.success && result?.user) {
       // Convert Firebase user to Session format
       const userSession: any = {
@@ -96,7 +137,10 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
         },
       };
       setSession(userSession);
-      navigate('/', { replace: true });
+      await fetchSecurityQuestions(result.user.uid);
+      // navigate('/', { replace: true });
+
+      // Fetch security questions
     }
   };
 
@@ -143,109 +187,139 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
     }
   }
 
+  const qaSubmitHandler = (answer:string) => {
+    if(answer === QA.answer) {
+      toast.success("Login Successfully!");
+      navigate('/', { replace: true });
+    } else {
+      toast.error("Incorrect answer. Please try again.");
+    }
+  }
+
   return (
-    <AppTheme {...props}>
-      <CssBaseline enableColorScheme />
-      <SignInContainer direction="column" justifyContent="space-between">
-        {/* <ColorModeSelect sx={{ position: 'fixed', top: '1rem', right: '1rem' }} /> */}
-        <Card variant="outlined">
-          <Typography
-            component="h1"
-            variant="h4"
-            sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}
-          >
-            Sign in
-          </Typography>
-          <Box
-            component="form"
-            onSubmit={handleSubmit}
-            noValidate
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              width: '100%',
-              gap: 2,
-            }}
-          >
-            <FormControl>
-              <FormLabel htmlFor="email">Email</FormLabel>
-              <TextField
-                error={emailError}
-                helperText={emailErrorMessage}
-                id="email"
-                type="email"
-                name="email"
-                placeholder="your@email.com"
-                autoComplete="email"
-                autoFocus
-                required
-                fullWidth
-                variant="outlined"
-                color={emailError ? 'error' : 'primary'}
-              />
-            </FormControl>
-            <FormControl>
-              <FormLabel htmlFor="password">Password</FormLabel>
-              <TextField
-                error={passwordError}
-                helperText={passwordErrorMessage}
-                name="password"
-                placeholder="••••••"
-                type="password"
-                id="password"
-                autoComplete="current-password"
-                autoFocus
-                required
-                fullWidth
-                variant="outlined"
-                color={passwordError ? 'error' : 'primary'}
-              />
-            </FormControl>
-            <FormControlLabel
-              control={<Checkbox value="remember" color="primary" />}
-              label="Remember me"
-            />
-            {/* <ForgotPassword open={open} handleClose={handleClose} /> */}
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              onClick={validateInputs}
+    <>
+     <ToastContainer
+            position="top-right"
+            autoClose={5000}
+            hideProgressBar={false}
+            newestOnTop={false}
+            closeOnClick={false}
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="dark"
+          />
+      <SecurityQuestionModal
+        isQAModalOpen={isQAModalOpen}
+        handleClose={() => setIsQAModalOpen(false)}
+        QA={QA}
+        qaSubmitHandler={qaSubmitHandler}
+      />
+      <AppTheme {...props}>
+        <CssBaseline enableColorScheme />
+        <SignInContainer direction="column" justifyContent="space-between">
+
+          {/* <ColorModeSelect sx={{ position: 'fixed', top: '1rem', right: '1rem' }} /> */}
+          <Card variant="outlined">
+            <Typography
+              component="h1"
+              variant="h4"
+              sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}
             >
               Sign in
-            </Button>
-            <Link
+            </Typography>
+            <Box
+              component="form"
+              onSubmit={handleSubmit}
+              noValidate
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                width: '100%',
+                gap: 2,
+              }}
+            >
+              <FormControl>
+                <FormLabel htmlFor="email">Email</FormLabel>
+                <TextField
+                  error={emailError}
+                  helperText={emailErrorMessage}
+                  id="email"
+                  type="email"
+                  name="email"
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                  fullWidth
+                  variant="outlined"
+                  color={emailError ? 'error' : 'primary'}
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel htmlFor="password">Password</FormLabel>
+                <TextField
+                  error={passwordError}
+                  helperText={passwordErrorMessage}
+                  name="password"
+                  placeholder="••••••"
+                  type="password"
+                  id="password"
+                  autoComplete="current-password"
+                  autoFocus
+                  required
+                  fullWidth
+                  variant="outlined"
+                  color={passwordError ? 'error' : 'primary'}
+                />
+              </FormControl>
+              <FormControlLabel
+                control={<Checkbox value="remember" color="primary" />}
+                label="Remember me"
+              />
+              {/* <ForgotPassword open={open} handleClose={handleClose} /> */}
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                onClick={validateInputs}
+              >
+                Sign in
+              </Button>
+              {/* <Link
               type="button"
               to="forgot-password"
               // onClick={handleClickOpen}
               style={{ alignSelf: 'center', color: 'white' }}
             >
               Forgot your password?
-            </Link>
-          </Box>
-          <Divider>or</Divider>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              type="button"
-              onClick={signInWithGoogleHandler}
-            // startIcon={<GoogleIcon />}
-            >
-              Sign in with Google
-            </Button>
-            <Typography sx={{ textAlign: 'center' }}>
-              Don&apos;t have an account?{' '}
-              <Link
-                to="/sign-up"
-                style={{ alignSelf: 'center', color: 'white' }}
+            </Link> */}
+            </Box>
+            <Divider>or</Divider>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                type="button"
+                onClick={signInWithGoogleHandler}
+              // startIcon={<GoogleIcon />}
               >
-                Sign up
-              </Link>
-            </Typography>
-          </Box>
-        </Card>
-      </SignInContainer>
-    </AppTheme>
+                Sign in with Google
+              </Button>
+              <Typography sx={{ textAlign: 'center' }}>
+                Don&apos;t have an account?{' '}
+                <Link
+                  to="/sign-up"
+                  style={{ alignSelf: 'center' }}
+                >
+                  Sign up
+                </Link>
+              </Typography>
+            </Box>
+          </Card>
+        </SignInContainer>
+      </AppTheme>
+    </>
   );
 }

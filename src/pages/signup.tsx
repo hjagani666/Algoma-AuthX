@@ -286,7 +286,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                     {'Already have an account ?  '}
                     <Link
                       to="/sign-in"
-                      style={{ alignSelf: 'center', color: 'white' }}
+                      style={{ alignSelf: 'center' }}
                     >
                       Sign In
                     </Link>
