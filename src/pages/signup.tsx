@@ -20,7 +20,9 @@ import { FirebaseError } from "firebase/app";
 import { doc, setDoc, getFirestore } from "firebase/firestore";
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-
+import { useState } from 'react';
+import axios from 'axios';
+import { useEffect } from 'react';
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
@@ -76,7 +78,7 @@ const securityQuestions = [
 const mfaOptions = [
   { label: "None", value: " " },
   { label: "Email OTP", value: "email" },
-  { label: "Mobile OTP", value: "mobile" },
+  { label: "TOTP", value: "TOTP" },
   { label: "Security Questions", value: "questions" },
   // { label: "TOTP (Authenticator App)", value: "totp" },
 ];
@@ -154,7 +156,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
 
           await setDoc(doc(db, "users", user.uid), authData);
           toast.success("User Registered Successfully!");
-          navigate("/", { replace: true });
+          navigate("/sign-in", { replace: true });
         }
       } catch (error: any) {
         let errorMessage = "An unexpected error occurred. Please try again.";
@@ -184,7 +186,28 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
   });
 
   console.log("##formik", formik)
+  const [qrCode, setQrCode] = useState('');
+    const [secret, setSecret] = useState('');
 
+    const generateTOTP = async (email:string) => {
+      try {
+        console.log(email);
+        const response = await axios.post('http://localhost:5000/api/otp/generate', { email });
+        console.log(response);
+  
+        setQrCode(response.data.qrCode);
+        setSecret(response.data.secret);
+      } catch (error) {
+        console.error('Error generating TOTP:', error);
+      }
+
+    };
+    useEffect(() => {
+      if (formik.values.selectedMFA === 'TOTP' && formik.values.email) {
+        generateTOTP(formik.values.email);
+      }
+    }, [formik.values.selectedMFA, formik.values.email]);
+  
   return (
     <AppTheme {...props}>
       <CssBaseline enableColorScheme />
@@ -307,29 +330,22 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                     }}
                   >
                     <Typography variant="h4" gutterBottom>
-                      Add Details
+                       Details
                     </Typography>
 
                     <Box>
                       {/* Mobile OTP MFA */}
-                      {formik.values.selectedMFA === "mobile" && (
-                        <FormControl fullWidth margin="normal">
-                          <FormLabel>Phone Number</FormLabel>
-                          <TextField
-                            color={formik.touched.phoneNumber && Boolean(formik.errors.phoneNumber) ? 'error' : 'primary'}
-                            id="phoneNumber"
-                            name="phoneNumber"
-                            type="tel"
-                            fullWidth
-                            variant="outlined"
-                            value={formik.values.phoneNumber}
-                            onChange={formik.handleChange}
-                            onBlur={formik.handleBlur}
-                            error={formik.touched.phoneNumber && Boolean(formik.errors.phoneNumber)}
-                            helperText={formik.touched.phoneNumber && formik.errors.phoneNumber}
-                          />
-                        </FormControl>
-                      )}
+                      {formik.values.selectedMFA === 'TOTP' && qrCode && (
+                  <Box>
+
+                    <Typography variant="h6">Scan this QR Code</Typography>
+                    <img src={qrCode} alt="TOTP QR Code" />
+                    <Typography variant="body1">Your secret key: {secret}</Typography>
+                  </Box>
+                )}
+
+                       
+
 
                       {/* Security Questions MFA */}
                       {formik.values.selectedMFA === "questions" &&

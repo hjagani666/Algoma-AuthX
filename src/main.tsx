@@ -7,7 +7,9 @@ import DashboardPage from './pages';
 import OrdersPage from './pages/orders';
 import SignInPage from './pages/signin';
 import SignUpPage from './pages/signup';
+import OTPForm from './components/OTPform';
 
+import generatetotp from './components/GenerateTOTP'
 const router = createBrowserRouter([
   {
     Component: App,
@@ -34,6 +36,19 @@ const router = createBrowserRouter([
         path: '/sign-up',
         Component: SignUpPage,
       },
+      {
+        path: '/mobile-otp',
+        Component: OTPForm,
+      },
+      // {
+      //   path: '/otp-verification',
+      //   Component: otpverification
+      // },
+      {
+        path: '/generate-totp/:email',  // Define the route with email as a parameter
+        Component:generatetotp  // GenerateTOTP component
+      },
+
     ],
   },
 ]);
