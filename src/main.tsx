@@ -4,7 +4,6 @@ import { createBrowserRouter, RouterProvider } from 'react-router';
 import App from './App';
 import Layout from './layouts/dashboard';
 import DashboardPage from './pages';
-import OrdersPage from './pages/orders';
 import SignInPage from './pages/signin';
 import SignUpPage from './pages/signup';
 import OTPForm from './components/OTPform';
@@ -21,11 +20,7 @@ const router = createBrowserRouter([
           {
             path: '',
             Component: DashboardPage,
-          },
-          {
-            path: 'orders',
-            Component: OrdersPage,
-          },
+          }
         ],
       },
       {

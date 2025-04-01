@@ -7,7 +7,7 @@ const GenerateTOTP = () => {
   const [qrCode, setQrCode] = useState('');
   const [secret, setSecret] = useState('');
   const [otp, setOtp] = useState('');  // State for OTP input
-  const [verificationResult, setVerificationResult] = useState(null);  // Store the verification result
+  const [verificationResult, setVerificationResult] = useState<any>(null);  // Store the verification result
 
   useEffect(() => {
     if (email) {
@@ -15,7 +15,7 @@ const GenerateTOTP = () => {
     }
   }, [email]);
 
-  const generateTOTP = async (email) => {
+  const generateTOTP = async (email: any) => {
     try {
       console.log(email);
       const response = await axios.post('http://localhost:5000/api/otp/generate', { email });
@@ -29,7 +29,7 @@ const GenerateTOTP = () => {
   };
 
   // Function to handle OTP verification
-  const handleOtpSubmit = async (e) => {
+  const handleOtpSubmit = async (e:any) => {
     e.preventDefault();
 
     if (!otp) {

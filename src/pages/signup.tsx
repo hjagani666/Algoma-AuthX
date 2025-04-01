@@ -10,7 +10,7 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import MuiCard from '@mui/material/Card';
 import AppTheme from '../theme/AppTheme';
-import { MenuItem, Select, styled } from '@mui/material';
+import { Alert, FormHelperText, IconButton, InputAdornment, MenuItem, Select, Snackbar, styled } from '@mui/material';
 import { Link, useNavigate } from 'react-router';
 import { useSession, type Session } from '../SessionContext';
 import Grid from '@mui/material/Grid2';
@@ -23,6 +23,10 @@ import * as Yup from 'yup';
 import { useState } from 'react';
 import axios from 'axios';
 import { useEffect } from 'react';
+import bcrypt from "bcryptjs";
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
@@ -84,11 +88,41 @@ const mfaOptions = [
 ];
 const db = getFirestore();
 
+const SecretKeyText = styled(Typography)(({ theme }) => ({
+  backgroundColor: theme.palette.mode === 'dark' ? '#303030' : '#f5f5f5', // Dark and light mode background
+  color: theme.palette.mode === 'dark' ? '#fff' : '#000', // Dark and light mode text color
+  padding: theme.spacing(1),
+  borderRadius: theme.shape.borderRadius,
+  width: '100%',
+  textAlign: 'center',
+  marginBottom: theme.spacing(2),
+  fontFamily: 'monospace',
+  boxShadow: theme.palette.mode === 'dark' ? '0px 4px 8px rgba(255, 255, 255, 0.2)' : '0px 4px 8px rgba(0, 0, 0, 0.1)', // Subtle shadow for both modes
+}));
+
 export default function SignIn(props: { disableCustomTheme?: boolean }) {
 
   const auth = getAuth();
   const navigate = useNavigate();
   const { session, setSession, loading } = useSession();
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [isCopied, setIsCopied] = useState(false); // State to show snackbar when copied
+  const secretKey = '3439480384034'; // Example secret key
+
+  // Function to handle copying the secret key to clipboard
+  const handleCopySecretKey = () => {
+    navigator.clipboard.writeText(secretKey).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // Reset the copied state after 2 seconds
+    }).catch((err) => {
+      console.error('Error copying text: ', err);
+    });
+  };
+
+  const handleClickShowPassword = () => {
+    setShowPassword((prev) => !prev);
+  };
 
   const formik: any = useFormik({
     initialValues: {
@@ -107,7 +141,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
       password: Yup.string()
         .min(6, 'Password must be at least 6 characters')
         .required('Password is required'),
-      selectedMFA: Yup.string(),
+      selectedMFA: Yup.string().trim().required('Please select MFA '),
       phoneNumber: Yup.string().when('selectedMFA', {
         is: 'mobile',
         then: (schema) => schema.required('Phone number is required'),
@@ -151,8 +185,18 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
           if (values.selectedMFA === "mobile") {
             authData.phoneNumber = values.phoneNumber;
           } else if (values.selectedMFA === "questions") {
-            authData.securityQuestions = values.securityQuestions;
+            const saltRounds = 10;
+            const hashedQuestions = await Promise.all(
+              values.securityQuestions.map(async (q: any) => ({
+                question: q.question,
+                answer: await bcrypt.hash(q.answer, saltRounds),
+              }))
+            );
+
+            // Save to Firestore
+            authData.securityQuestions = hashedQuestions;
           }
+          console.log("###authData", authData)
 
           await setDoc(doc(db, "users", user.uid), authData);
           toast.success("User Registered Successfully!");
@@ -187,27 +231,27 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
 
   console.log("##formik", formik)
   const [qrCode, setQrCode] = useState('');
-    const [secret, setSecret] = useState('');
+  const [secret, setSecret] = useState('');
 
-    const generateTOTP = async (email:string) => {
-      try {
-        console.log(email);
-        const response = await axios.post('http://localhost:5000/api/otp/generate', { email });
-        console.log(response);
-  
-        setQrCode(response.data.qrCode);
-        setSecret(response.data.secret);
-      } catch (error) {
-        console.error('Error generating TOTP:', error);
-      }
+  const generateTOTP = async (email: string) => {
+    try {
+      console.log(email);
+      const response = await axios.post('http://localhost:5000/api/otp/generate', { email });
+      console.log(response);
 
-    };
-    useEffect(() => {
-      if (formik.values.selectedMFA === 'TOTP' && formik.values.email) {
-        generateTOTP(formik.values.email);
-      }
-    }, [formik.values.selectedMFA, formik.values.email]);
-  
+      setQrCode(response.data.qrCode);
+      setSecret(response.data.secret);
+    } catch (error) {
+      console.error('Error generating TOTP:', error);
+    }
+
+  };
+  useEffect(() => {
+    if (formik.values.selectedMFA === 'TOTP' && formik.values.email) {
+      generateTOTP(formik.values.email);
+    }
+  }, [formik.values.selectedMFA, formik.values.email]);
+
   return (
     <AppTheme {...props}>
       <CssBaseline enableColorScheme />
@@ -233,7 +277,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                   variant="h4"
                   sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}
                 >
-                  Sign Up
+                  Sign <u></u>up
                 </Typography>
                 <Box
                   sx={{
@@ -243,7 +287,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                     gap: 2,
                   }}
                 >
-                  <FormControl>
+                  <FormControl error={formik.touched.email && Boolean(formik.errors.email)}>
                     <FormLabel htmlFor="email">Email</FormLabel>
                     <TextField
                       value={formik.values.email}
@@ -261,12 +305,15 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                       color={formik.touched.email && Boolean(formik.errors.email) ? 'error' : 'primary'}
                     />
                   </FormControl>
-                  <FormControl>
+                  <FormControl
+                    error={formik.touched.password && Boolean(formik.errors.password)}
+                    fullWidth
+                  >
                     <FormLabel htmlFor="password">Password</FormLabel>
                     <TextField
                       id="password"
                       name="password"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       value={formik.values.password}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
@@ -276,11 +323,21 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                       variant="outlined"
                       fullWidth
                       color={formik.touched.password && Boolean(formik.errors.password) ? 'error' : 'primary'}
+                      slotProps={{
+                        input: {
+                          endAdornment: (<InputAdornment position="end">
+                            <IconButton onClick={handleClickShowPassword} edge="end">
+                              {showPassword ? <VisibilityOff /> : <Visibility />}
+                            </IconButton>
+                          </InputAdornment>)
+                        },
+                      }}
                     />
                   </FormControl>
                   {/* Single-Select for MFA Options */}
-                  <FormControl fullWidth margin="normal">
-                    <FormLabel>Select Multi-Factor Authentication</FormLabel>
+                  <FormControl fullWidth margin="normal"
+                    error={formik.touched.selectedMFA && Boolean(formik.errors.selectedMFA)}>
+                    <FormLabel id="selectedMFA">Select Multi-Factor Authentication</FormLabel>
                     <Select
                       id="selectedMFA"
                       name="selectedMFA"
@@ -294,6 +351,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                         </MenuItem>
                       ))}
                     </Select>
+                    {formik.touched.selectedMFA && Boolean(formik.errors.selectedMFA) && <FormHelperText>{formik.errors.selectedMFA}</FormHelperText>}
                   </FormControl>
                   <Button
                     type="submit"
@@ -304,7 +362,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                   </Button>
                 </Box>
                 <Divider>or</Divider>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Typography sx={{ textAlign: 'center' }}>
                     {'Already have an account ?  '}
                     <Link
@@ -330,28 +388,66 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                     }}
                   >
                     <Typography variant="h4" gutterBottom>
-                       Details
+                      Details
                     </Typography>
 
                     <Box>
-                      {/* Mobile OTP MFA */}
-                      {formik.values.selectedMFA === 'TOTP' && qrCode && (
-                  <Box>
+                      {/* Mobile TOTP MFA */}
+                      {formik.values.selectedMFA === 'TOTP' && qrCode && <Box
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'background.paper',
+                          padding: 3,
+                          borderRadius: 2,
+                          boxShadow: 2,
+                          maxWidth: 400,
+                          margin: 'auto',
+                        }}
+                      >
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', marginBottom: 2 }}>
+                          Scan this QR Code
+                        </Typography>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            marginBottom: 2,
+                          }}
+                        >
+                          <img src={qrCode} alt="TOTP QR Code" style={{ width: 180, height: 180 }} />
+                        </Box>
+                        <Typography variant="body1" sx={{ marginBottom: 2, textAlign: 'center' }}>
+                          Your secret key:
+                        </Typography>
+                        <SecretKeyText variant="body2">
+                          {secretKey}
+                        </SecretKeyText>
+                        <Button variant="outlined" sx={{ width: '100%' }} onClick={handleCopySecretKey}>
+                          Copy Secret Key
+                        </Button>
 
-                    <Typography variant="h6">Scan this QR Code</Typography>
-                    <img src={qrCode} alt="TOTP QR Code" />
-                    <Typography variant="body1">Your secret key: {secret}</Typography>
-                  </Box>
-                )}
-
-                       
+                        {/* Snackbar for Copy Confirmation */}
+                        <Snackbar
+                          open={isCopied}
+                          autoHideDuration={2000}
+                          onClose={() => setIsCopied(false)}
+                        >
+                          <Alert onClose={() => setIsCopied(false)} severity="success" sx={{ width: '100%' }}>
+                            Secret key copied!
+                          </Alert>
+                        </Snackbar>
+                      </Box>}
 
 
                       {/* Security Questions MFA */}
                       {formik.values.selectedMFA === "questions" &&
-                        formik.values.securityQuestions.map((q:any, index:number) => {
+                        formik.values.securityQuestions.map((q: any, index: number) => {
                           // Prevent duplicate selections
-                          const selectedQuestions = formik.values.securityQuestions.map((q:any) => q.question);
+                          const selectedQuestions = formik.values.securityQuestions.map((q: any) => q.question);
                           const availableQuestions = securityQuestions.filter(
                             (question) => !selectedQuestions.includes(question) || question === q.question
                           );

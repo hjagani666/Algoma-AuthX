@@ -16,16 +16,11 @@ const NAVIGATION: Navigation = [
   {
     title: 'Dashboard',
     icon: <DashboardIcon />,
-  },
-  {
-    segment: 'orders',
-    title: 'Orders',
-    icon: <ShoppingCartIcon />,
-  },
+  }
 ];
 
 const BRANDING = {
-  title: 'My Toolpad Core App',
+  title: 'Algoma AuthX',
 };
 
 const AUTHENTICATION: Authentication = {

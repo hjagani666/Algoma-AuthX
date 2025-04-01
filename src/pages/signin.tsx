@@ -12,7 +12,7 @@ import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import MuiCard from "@mui/material/Card";
 import AppTheme from "../theme/AppTheme";
-import { Dialog, DialogContent, Modal, styled } from "@mui/material";
+import { Dialog, DialogContent, IconButton, InputAdornment, Modal, styled } from "@mui/material";
 import { signInWithCredentials, signInWithGoogle } from "../firebase/auth";
 import { Link, useNavigate } from "react-router";
 import { useSession } from "../SessionContext";
@@ -23,6 +23,10 @@ import emailjs from "emailjs-com";
 import OPTModal from "../components/OPTModal";
 import TOTPModal from "../components/TOTPModal";
 import axios from "axios";
+import bcrypt from 'bcryptjs';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+
 const BootstrapDialog = styled(Dialog)(({ theme }) => ({
   "& .MuiDialogContent-root": {
     padding: theme.spacing(2),
@@ -82,7 +86,13 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [emailOTP, setEmailOTP] = React.useState(null);
   const [isTOTPModalOpen, setIsTOTPModalOpen] = React.useState(false);
-  const [totpemail,settotpemail]=React.useState("");
+  const [totpemail, settotpemail] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
+
+  // Toggle password visibility
+  const handleClickShowPassword = () => {
+    setShowPassword((prev) => !prev);
+  };
   const { setSession } = useSession();
   const navigate = useNavigate();
 
@@ -137,7 +147,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
           settotpemail(userData?.email)
           console.log("Security Questions:", userData.securityQuestions);
         }
-      } 
+      }
     } catch (error) {
       console.error("Error fetching security questions:", error);
     }
@@ -145,25 +155,66 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    // Check for form validation errors
     if (emailError || passwordError) {
       return;
     }
+
     const data = new FormData(event.currentTarget);
-    const email: any = data.get("email");
-    const password: any = data.get("password");
-    const result: any = await signInWithCredentials(email, password);
-    if (result?.success && result?.user) {
-      const userSession: any = {
-        user: {
-          name: result.user.displayName || "",
-          email: result.user.email || "",
-          image: result.user.photoURL || "",
-        },
-      };
-      setSession(userSession);
-      await fetchSecurityQuestions(result.user.uid);
+    const email: string = data.get("email") as string;
+    const password: string = data.get("password") as string;
+
+    try {
+      const result: any = await signInWithCredentials(email, password);
+
+      // Check if sign-in was successful
+      if (result?.success && result?.user) {
+        const userSession: any = {
+          user: {
+            name: result.user.displayName || "",
+            email: result.user.email || "",
+            image: result.user.photoURL || "",
+          },
+        };
+
+        // Set the session
+        setSession(userSession);
+
+        // Fetch security questions after successful sign-in
+        await fetchSecurityQuestions(result.user.uid);
+      }
+    } catch (error: any) {
+      // Simplified error messages
+      let errorMessage = "An error occurred. Please try again.";
+      console.log("###error", error.code)
+      if (error?.code) {
+        switch (error.code) {
+          case "auth/invalid-credential":
+            errorMessage = "Invalid Credentials!";
+            break;
+          case "auth/user-not-found":
+            errorMessage = "Email not found!";
+            break;
+          case "auth/wrong-password":
+            errorMessage = "Credentials are invalid!";
+            break;
+          case "auth/too-many-requests":
+            errorMessage = "Too many attempts. Try again later.";
+            break;
+          case "auth/network-request-failed":
+            errorMessage = "Network error. Check your connection.";
+            break;
+          default:
+            break;
+        }
+      }
+
+      // Display error message to the user
+      toast.error(errorMessage); // Example using toast notifications
     }
   };
+
 
   const handleOtpSubmit = (values: any) => {
     console.log("###value", values);
@@ -202,33 +253,58 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
 
     return isValid;
   };
-  const qaSubmitHandler = (answer:string) => {
-    if(answer === QA.answer) {
+  const qaSubmitHandler = async (answer: string) => {
+    const isMatch = await bcrypt.compare(answer, QA.answer);
+    if (isMatch) {
       toast.success("Login Successfully!");
       navigate('/', { replace: true });
     } else {
       toast.error("Incorrect answer. Please try again.");
     }
   }
-  const handletotpSubmit = async(values:any) => {
+  const handletotpSubmit = async (values: any) => {
     // if(answer === QA.answer) {
     //   toast.success("Login Successfully!");
     //   navigate('/', { replace: true });
     // } else {
     //   toast.error("Incorrect answer. Please try again.");
     // }
-   // values.otp in backend and email
-  //  console.log(email)
-   const response = await axios.post("http://localhost:5000/api/otp/verify", {
-    email:totpemail,
-    token: values.otp,
-  });
-  console.log(response)
-     if(response?.data?.verified){
+    // values.otp in backend and email
+    //  console.log(email)
+    const response = await axios.post("http://localhost:5000/api/otp/verify", {
+      email: totpemail,
+      token: values.otp,
+    });
+    console.log(response)
+    if (response?.data?.verified) {
       navigate('/');
-     }
+    }
   }
- 
+
+  const signInWithGoogleHandler = async () => {
+    const result = await signInWithGoogle();
+    try {
+      if (result?.success && result?.user) {
+        // Convert Firebase user to Session format
+        const userSession: any = {
+          user: {
+            name: result.user.displayName || '',
+            email: result.user.email || '',
+            image: result.user.photoURL || '',
+          },
+        };
+        setSession(userSession);
+        navigate('/', { replace: true });
+        toast.success("Login Successfully!");
+        return {};
+      }
+      return { error: result?.error || 'Failed to sign in' };
+    } catch (error) {
+      toast.error("Something went wrong!");
+      return { error: error instanceof Error ? error.message : 'An error occurred' };
+    }
+  }
+
 
 
   return (
@@ -256,7 +332,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
         handleClose={() => setIsModalOpen(false)}
         handleSubmit={handleOtpSubmit}
       />
-       <TOTPModal
+      <TOTPModal
         isOpen={isTOTPModalOpen}
         handleClose={() => setIsTOTPModalOpen(false)}
         handleSubmit={handletotpSubmit}
@@ -300,20 +376,30 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                   color={emailError ? "error" : "primary"}
                 />
               </FormControl>
-              <FormControl>
+              <FormControl fullWidth>
                 <FormLabel htmlFor="password">Password</FormLabel>
                 <TextField
                   error={passwordError}
                   helperText={passwordErrorMessage}
                   name="password"
                   placeholder="Enter your password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   id="password"
                   autoComplete="current-password"
                   required
-                  fullWidth
                   variant="outlined"
-                  color={passwordError ? "error" : "primary"}
+                  color={passwordError ? 'error' : 'primary'}
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={handleClickShowPassword} edge="end">
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }
+                  }}
                 />
               </FormControl>
               <FormControlLabel
@@ -325,7 +411,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
               </Button>
               <Divider variant="middle" sx={{ width: "100%" }} />
               <Button
-                onClick={signInWithGoogle}
+                onClick={signInWithGoogleHandler}
                 fullWidth
                 sx={{ mt: 1 }}
                 variant="outlined"
@@ -337,18 +423,18 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
               direction="row"
               alignItems="center"
               justifyContent="center"
-              sx={{ width: "100%", gap: 2 }}
+              sx={{ width: "100%", gap: 1 }}
             >
               <Typography variant="body1">New to the platform?</Typography>
               <Link to="/sign-up">
-                <Button variant="text">Sign Up</Button>
+                Sign Up
               </Link>
             </Stack>
           </Card>
         </SignInContainer>
       </AppTheme>
 
-      
+
     </>
   );
 }

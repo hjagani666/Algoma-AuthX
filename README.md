@@ -1,15 +1,15 @@
-# Toolpad Core - Vite with React Router and Firebase Auth
+# Algoma AuthX - Vite with React Router and Firebase Auth
 
-This example provides a minimal setup to get Toolpad Core working in Vite with HMR, as well as routing with React Router and authentication with Firebase.
+This example provides a minimal setup to get Algoma AuthX working in Vite with HMR, as well as routing with React Router and authentication with Firebase.
 
-## Clone using `create-toolpad-app`
+## Clone using `create-algoma-authx-app`
 
 To copy this example and customize it for your needs, run
 
 ```bash
-npx create-toolpad-app@latest --example firebase-vite
+npx create-algoma-authx-app@latest --example firebase-vite
 # or
-pnpm create toolpad-app --example firebase-vite
+pnpm create algoma-authx-app --example firebase-vite
 ```
 
 ## Setting up
@@ -41,6 +41,3 @@ bun dev
 
 Open [http://localhost:5173](http://localhost:5173) with your browser to see the result.
 
-## The source
-
-[Check out the source code](https://github.com/mui/toolpad/tree/master/examples/core/vite/)
