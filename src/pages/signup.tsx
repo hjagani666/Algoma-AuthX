@@ -100,25 +100,15 @@ const SecretKeyText = styled(Typography)(({ theme }) => ({
   boxShadow: theme.palette.mode === 'dark' ? '0px 4px 8px rgba(255, 255, 255, 0.2)' : '0px 4px 8px rgba(0, 0, 0, 0.1)', // Subtle shadow for both modes
 }));
 
-export default function SignIn(props: { disableCustomTheme?: boolean }) {
+export default function SignUp(props: { disableCustomTheme?: boolean }) {
 
   const auth = getAuth();
   const navigate = useNavigate();
   const { session, setSession, loading } = useSession();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [isCopied, setIsCopied] = useState(false); // State to show snackbar when copied
-  const secretKey = '3439480384034'; // Example secret key
+  const [isCopied, setIsCopied] = useState(false); // State to show snackbar when copied  
 
-  // Function to handle copying the secret key to clipboard
-  const handleCopySecretKey = () => {
-    navigator.clipboard.writeText(secretKey).then(() => {
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000); // Reset the copied state after 2 seconds
-    }).catch((err) => {
-      console.error('Error copying text: ', err);
-    });
-  };
 
   const handleClickShowPassword = () => {
     setShowPassword((prev) => !prev);
@@ -246,6 +236,18 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
     }
 
   };
+
+  // Function to handle copying the secret key to clipboard
+  const handleCopySecretKey = () => {
+    navigator.clipboard.writeText(secret).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // Reset the copied state after 2 seconds
+    }).catch((err) => {
+      console.error('Error copying text: ', err);
+    });
+  };
+
+
   useEffect(() => {
     if (formik.values.selectedMFA === 'TOTP' && formik.values.email) {
       generateTOTP(formik.values.email);
@@ -424,7 +426,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
                           Your secret key:
                         </Typography>
                         <SecretKeyText variant="body2">
-                          {secretKey}
+                          {secret}
                         </SecretKeyText>
                         <Button variant="outlined" sx={{ width: '100%' }} onClick={handleCopySecretKey}>
                           Copy Secret Key
